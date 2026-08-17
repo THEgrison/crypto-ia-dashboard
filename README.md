@@ -49,10 +49,9 @@ Cette clé ne donne accès qu'à des données publiques de marché : elle ne per
 ```bash
 git clone https://github.com/THEgrison/crypto-ia-dashboard.git
 cd crypto-ia-dashboard
-cp js/config.example.js js/config.js
 ```
 
-Ouvrez ensuite `js/config.js` et collez votre clé :
+Ouvrez `js/config.js` et remplacez le placeholder par votre clé :
 
 ```javascript
 window.COINGECKO_CONFIG = {
@@ -62,9 +61,18 @@ window.COINGECKO_CONFIG = {
 };
 ```
 
-`js/config.js` est listé dans `.gitignore` : votre clé ne sera jamais versionnée.
-
 Sans clé, le dashboard démarre quand même et bascule sur les données de démonstration incluses.
+
+> **Important — évitez de publier votre clé**
+> `js/config.js` est versionné dans ce dépôt (il contient un placeholder). Si vous y collez votre clé et poussez vos modifications, **elle deviendra publique**.
+>
+> Après avoir ajouté votre clé, demandez à git d'ignorer vos modifications de ce fichier :
+>
+> ```bash
+> git update-index --skip-worktree js/config.js
+> ```
+>
+> Pour annuler plus tard : `git update-index --no-skip-worktree js/config.js`
 
 ## Lancer le projet
 
@@ -93,8 +101,7 @@ crypto-ia-dashboard/
 ├── assets/logo.png       # Logo et favicon
 ├── css/styles.css        # Thème sombre anguleux
 └── js/
-    ├── config.example.js # Modèle de configuration (versionné)
-    ├── config.js         # Votre clé API (ignoré par git)
+    ├── config.js         # Clé API et paramètres de rafraîchissement
     ├── data.js           # Données de démonstration et utilitaires
     ├── api.js            # Client CoinGecko
     ├── charts.js         # Rendu Canvas des graphiques
@@ -125,6 +132,7 @@ Ce projet est entièrement côté navigateur, sans backend. **Toute clé placée
 - Une clé **Demo** reste peu sensible : quota limité, aucun accès au compte.
 - Pour un déploiement public, faites transiter les appels par une fonction serverless qui masque la clé.
 - N'exposez **jamais** une clé **Pro** côté client.
+- `js/config.js` étant versionné, appliquez `git update-index --skip-worktree js/config.js` après y avoir mis votre clé, sinon un `git push` la publierait.
 
 ## Accessibilité
 
