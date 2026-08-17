@@ -13,6 +13,8 @@
 
 ## Aperçu
 
+![Capture du dashboard : panneau de recommandation et graphique de prix en chandelles](assets/screenshot.png)
+
 Un tableau de bord noir et blanc façon terminal de trading, dense et anguleux, qui regroupe :
 
 - **Recommandation** — signal Acheter / Vendre / Attendre, niveau de confiance, suggestion de timing, prix, variation 24h et capitalisation
