@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Outil d'aide à la décision en trading crypto — analyse et recommandations uniquement, sans exécution d'ordres.">
+  <title>Crypto IA — Dashboard d'analyse</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&family=IBM+Plex+Sans:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="icon" type="image/png" href="assets/logo.png">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <div class="dashboard">
+    <!-- Header -->
+    <header class="header">
+      <div class="header__brand">
+        <img class="header__logo" src="assets/logo.png" alt="" width="36" height="36">
+        <div>
+          <h1 class="header__title">Crypto IA</h1>
+          <p class="header__subtitle">Aide à la décision · Analyse uniquement</p>
+        </div>
+      </div>
+
+      <div class="header__search">
+        <label for="search-input" class="visually-hidden">Rechercher une cryptomonnaie</label>
+        <input
+          type="search"
+          id="search-input"
+          class="search-input"
+          placeholder="BTC, ETH, SOL…"
+          autocomplete="off"
+          role="combobox"
+          aria-expanded="false"
+          aria-controls="search-dropdown"
+          aria-autocomplete="list"
+        >
+        <div id="search-dropdown" class="search-dropdown" role="listbox" aria-label="Résultats de recherche"></div>
+      </div>
+
+      <p class="header__disclaimer">
+        Cet outil affiche des signaux et des données à titre informatif. Aucun ordre n'est exécuté. Les performances passées ne garantissent pas les résultats futurs.
+      </p>
+
+      <p class="api-status mono" id="api-status" data-state="loading" aria-live="polite">Initialisation…</p>
+    </header>
+
+    <!-- Accès rapide watchlist -->
+    <nav class="ticker-pills" id="ticker-pills" aria-label="Accès rapide aux cryptomonnaies suivies"></nav>
+
+    <p class="disclaimer-strip mono">
+      Outil d'analyse et d'aide à la décision — aucun ordre n'est exécuté — ne constitue pas un conseil financier
+    </p>
+
+    <!-- Main grid -->
+    <main class="main">
+
+      <!-- Recommendation panel -->
+      <section class="panel panel--recommendation" aria-labelledby="rec-heading">
+        <div class="panel__header">
+          <h2 class="panel__title" id="rec-heading">Recommandation</h2>
+        </div>
+
+        <div class="rec-symbol" id="rec-symbol">BTC</div>
+        <div class="rec-name" id="rec-name">Bitcoin</div>
+
+        <div class="rec-price-row">
+          <span class="rec-price mono" id="rec-price">$67 432,50</span>
+          <span class="rec-change is-positive" id="rec-change">+2,34%</span>
+        </div>
+
+        <div class="rec-signal">
+          <div class="rec-signal__label">Signal</div>
+          <div class="rec-signal__value" id="rec-signal" data-signal="buy">Acheter</div>
+        </div>
+
+        <div class="rec-confidence">
+          <div class="rec-confidence__header">
+            <span class="rec-confidence__label">Confiance</span>
+            <span class="rec-confidence__value mono" id="rec-confidence">78%</span>
+          </div>
+          <div class="confidence-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="78" aria-label="Niveau de confiance du signal">
+            <div class="confidence-bar__fill" id="rec-confidence-bar" style="width: 78%"></div>
+          </div>
+        </div>
+
+        <div class="rec-timing">
+          <div class="rec-timing__label">Timing suggéré</div>
+          <p id="rec-timing">Bon moment pour entrer sur un repli court — momentum haussier confirmé</p>
+        </div>
+
+        <div class="rec-stats">
+          <div class="stat-box">
+            <div class="stat-box__key">Prix actuel</div>
+            <div class="stat-box__val mono" id="stat-price">—</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-box__key">Var. 24h</div>
+            <div class="stat-box__val mono" id="stat-change">—</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-box__key">Cap. marché</div>
+            <div class="stat-box__val mono" id="stat-cap">—</div>
+          </div>
+        </div>
+
+        <p class="rec-note">Signal indicatif — ne constitue pas un conseil financier.</p>
+      </section>
+
+      <!-- Price chart -->
+      <section class="panel panel--chart" aria-labelledby="chart-heading">
+        <div class="panel__header">
+          <h2 class="panel__title" id="chart-heading">Graphique de prix</h2>
+          <span class="panel__badge" id="chart-badge">BTC · 30j</span>
+        </div>
+
+        <div class="chart-controls">
+          <div class="chart-controls__group" role="group" aria-label="Type d'affichage du graphique">
+            <span class="chart-controls__label">Affichage</span>
+            <button type="button" class="pill" data-chart-type="candles" aria-pressed="true">Chandelles</button>
+            <button type="button" class="pill" data-chart-type="ohlc" aria-pressed="false">Barres OHLC</button>
+            <button type="button" class="pill" data-chart-type="line" aria-pressed="false">Ligne</button>
+            <button type="button" class="pill" data-chart-type="area" aria-pressed="false">Aire</button>
+          </div>
+          <button type="button" class="pill pill--toggle" id="toggle-ma" aria-pressed="true">Moyennes mobiles</button>
+        </div>
+
+        <div class="chart-container">
+          <canvas id="price-chart" height="420" role="img" aria-label="Graphique de prix sur 30 jours avec moyennes mobiles MA7 et MA25"></canvas>
+        </div>
+
+        <div class="chart-legend" id="chart-legend">
+          <span class="chart-legend__item"><span class="chart-legend__swatch chart-legend__swatch--candle-up"></span> Hausse</span>
+          <span class="chart-legend__item"><span class="chart-legend__swatch chart-legend__swatch--candle-down"></span> Baisse</span>
+          <span class="chart-legend__item" data-legend="ma"><span class="chart-legend__swatch chart-legend__swatch--ma20"></span> MA 7</span>
+          <span class="chart-legend__item" data-legend="ma"><span class="chart-legend__swatch chart-legend__swatch--ma50"></span> MA 25</span>
+        </div>
+      </section>
+
+      <!-- Volume -->
+      <section class="panel panel--volume" aria-labelledby="volume-heading">
+        <div class="panel__header">
+          <h2 class="panel__title" id="volume-heading">Volumes</h2>
+          <span class="panel__badge" id="volume-badge">14 derniers jours</span>
+        </div>
+
+        <div class="volume-stats">
+          <div class="volume-stat">
+            <div class="volume-stat__label">Volume 24h</div>
+            <div class="volume-stat__value mono" id="vol-current">$28.5B</div>
+          </div>
+          <div class="volume-stat">
+            <div class="volume-stat__label">Moyenne 24h</div>
+            <div class="volume-stat__value mono" id="vol-average">$24.2B</div>
+          </div>
+        </div>
+
+        <div class="volume-comparison">
+          <span>vs moyenne</span>
+          <div class="volume-comparison__bar">
+            <div class="volume-comparison__fill" id="vol-comparison-fill" style="width: 78%"></div>
+          </div>
+          <span class="volume-comparison__pct mono" id="vol-comparison-pct">118%</span>
+        </div>
+
+        <div class="chart-container">
+          <canvas id="volume-chart" height="120" aria-label="Graphique de volume sur 14 jours"></canvas>
+        </div>
+      </section>
+
+      <!-- News -->
+      <section class="panel panel--news" aria-labelledby="news-heading">
+        <div class="panel__header">
+          <h2 class="panel__title" id="news-heading">News &amp; annonces</h2>
+          <span class="panel__badge">Sérénité du marché</span>
+        </div>
+        <ul class="news-list" id="news-list" aria-live="polite"></ul>
+      </section>
+
+      <!-- Long term -->
+      <section class="panel panel--longterm" aria-labelledby="longterm-heading">
+        <div class="panel__header">
+          <h2 class="panel__title" id="longterm-heading">Hold long terme</h2>
+          <span class="panel__badge">Stables</span>
+        </div>
+        <div class="crypto-grid" id="longterm-grid"></div>
+      </section>
+
+      <!-- Short term -->
+      <section class="panel panel--shortterm" aria-labelledby="shortterm-heading">
+        <div class="panel__header">
+          <h2 class="panel__title" id="shortterm-heading">Court terme / volatilité</h2>
+          <span class="panel__badge">Trading actif</span>
+        </div>
+        <div class="shortterm-grid" id="shortterm-grid"></div>
+      </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <p class="footer__text" id="footer-source">Prix · CoinGecko · News & signaux · données locales</p>
+      <p class="footer__text">Aucune exécution d'ordre · Pas de garantie de résultat</p>
+    </footer>
+  </div>
+
+  <!-- Visually hidden utility -->
+  <style>
+    .visually-hidden {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+  </style>
+
+  <script src="js/config.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/charts.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
