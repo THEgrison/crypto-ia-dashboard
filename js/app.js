@@ -16,7 +16,12 @@
   const WATCHLIST = ['BTC', 'ETH', 'SOL', 'BNB', 'XRP', 'ADA', 'DOGE', 'AVAX'];
 
   const PREFS_KEY = 'crypto-ia-chart-prefs';
+  const REFRESH_KEY = 'crypto-ia-refresh-interval';
   const chartPrefs = loadChartPrefs();
+
+  let refreshIntervalMs = loadRefreshInterval();
+  let lastUpdateAt = null;
+  let clockTimer = null;
 
   const els = {
     searchInput: document.getElementById('search-input'),
@@ -48,7 +53,26 @@
     statPrice: document.getElementById('stat-price'),
     statChange: document.getElementById('stat-change'),
     statCap: document.getElementById('stat-cap'),
+    lastUpdate: document.getElementById('last-update'),
+    refreshNow: document.getElementById('refresh-now'),
   };
+
+  function loadRefreshInterval() {
+    const fallback = window.COINGECKO_CONFIG?.refreshIntervalMs ?? 60_000;
+    const stored = localStorage.getItem(REFRESH_KEY);
+    if (stored === null) return fallback;
+
+    const parsed = Number(stored);
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
+  }
+
+  function saveRefreshInterval() {
+    try {
+      localStorage.setItem(REFRESH_KEY, String(refreshIntervalMs));
+    } catch {
+      /* stockage indisponible (navigation privée) : préférence non persistée */
+    }
+  }
 
   function loadChartPrefs() {
     const defaults = { type: 'candles', showMA: true };
@@ -73,6 +97,7 @@
     renderTickerPills();
     bindSearch();
     bindChartControls();
+    bindRefreshControls();
     bindResize();
 
     setApiStatus('loading', 'Connexion CoinGecko…');
@@ -146,6 +171,8 @@
       renderRecommendation(data);
       renderVolume(data);
       renderCharts(data);
+      lastUpdateAt = Date.now();
+      renderLastUpdate();
       setApiStatus('live', 'Prix live · CoinGecko');
       if (els.footerSource) {
         els.footerSource.textContent =
@@ -161,14 +188,82 @@
   }
 
   function scheduleRefresh() {
-    const interval = window.COINGECKO_CONFIG?.refreshIntervalMs ?? 60_000;
     clearInterval(refreshTimer);
-    refreshTimer = setInterval(() => {
-      if (CoinGecko.isSupported(currentSymbol, currentCoinId)) {
-        selectCrypto(currentSymbol, { coinId: currentCoinId });
-      }
-      refreshListSections();
-    }, interval);
+    refreshTimer = null;
+
+    if (refreshIntervalMs > 0) {
+      refreshTimer = setInterval(refreshNow, refreshIntervalMs);
+    }
+
+    /* L'âge des données défile en continu, même en mode manuel. */
+    if (!clockTimer) clockTimer = setInterval(renderLastUpdate, 1000);
+
+    syncRefreshControls();
+  }
+
+  async function refreshNow() {
+    const tasks = [refreshListSections()];
+    if (CoinGecko.isSupported(currentSymbol, currentCoinId)) {
+      tasks.push(selectCrypto(currentSymbol, { coinId: currentCoinId }));
+    }
+    await Promise.all(tasks);
+  }
+
+  /* ── Contrôles d'actualisation ── */
+  function bindRefreshControls() {
+    document.querySelectorAll('[data-interval]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        refreshIntervalMs = Number(btn.dataset.interval);
+        saveRefreshInterval();
+        scheduleRefresh();
+      });
+    });
+
+    els.refreshNow.addEventListener('click', async () => {
+      els.refreshNow.setAttribute('aria-busy', 'true');
+      await refreshNow();
+      els.refreshNow.removeAttribute('aria-busy');
+    });
+
+    syncRefreshControls();
+    renderLastUpdate();
+  }
+
+  function syncRefreshControls() {
+    document.querySelectorAll('[data-interval]').forEach((btn) => {
+      btn.setAttribute('aria-pressed', String(Number(btn.dataset.interval) === refreshIntervalMs));
+    });
+  }
+
+  function renderLastUpdate() {
+    if (!els.lastUpdate) return;
+
+    if (!lastUpdateAt) {
+      els.lastUpdate.textContent = 'En attente de données';
+      els.lastUpdate.dataset.state = 'pending';
+      return;
+    }
+
+    const seconds = Math.floor((Date.now() - lastUpdateAt) / 1000);
+    const heure = new Date(lastUpdateAt).toLocaleTimeString('fr-FR');
+
+    els.lastUpdate.textContent = `MAJ ${heure} · ${formatAge(seconds)}`;
+    els.lastUpdate.dataset.state = seconds < 90 ? 'fresh' : 'stale';
+    els.lastUpdate.title = refreshIntervalMs
+      ? `Actualisation automatique toutes les ${formatInterval(refreshIntervalMs)}`
+      : 'Actualisation automatique désactivée';
+  }
+
+  function formatAge(seconds) {
+    if (seconds < 5) return 'à l\'instant';
+    if (seconds < 60) return `il y a ${seconds} s`;
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `il y a ${minutes} min`;
+    return `il y a ${Math.floor(minutes / 60)} h`;
+  }
+
+  function formatInterval(ms) {
+    return ms >= 60_000 ? `${ms / 60_000} min` : `${ms / 1000} s`;
   }
 
   function setApiStatus(state, message) {

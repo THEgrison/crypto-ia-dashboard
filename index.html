@@ -46,8 +46,22 @@
       <p class="api-status mono" id="api-status" data-state="loading" aria-live="polite">Initialisation…</p>
     </header>
 
-    <!-- Accès rapide watchlist -->
-    <nav class="ticker-pills" id="ticker-pills" aria-label="Accès rapide aux cryptomonnaies suivies"></nav>
+    <!-- Accès rapide watchlist + fréquence d'actualisation -->
+    <div class="toolbar">
+      <nav class="toolbar__tickers" id="ticker-pills" aria-label="Accès rapide aux cryptomonnaies suivies"></nav>
+
+      <div class="refresh-control">
+        <span class="refresh-control__update mono" id="last-update" aria-live="polite">En attente de données</span>
+        <div class="refresh-control__group" role="group" aria-label="Fréquence d'actualisation automatique">
+          <span class="refresh-control__label">Actualisation</span>
+          <button type="button" class="pill" data-interval="30000" aria-pressed="false">30 s</button>
+          <button type="button" class="pill" data-interval="60000" aria-pressed="true">1 min</button>
+          <button type="button" class="pill" data-interval="300000" aria-pressed="false">5 min</button>
+          <button type="button" class="pill" data-interval="0" aria-pressed="false">Manuel</button>
+        </div>
+        <button type="button" class="pill pill--action" id="refresh-now">Actualiser</button>
+      </div>
+    </div>
 
     <p class="disclaimer-strip mono">
       Outil d'analyse et d'aide à la décision — aucun ordre n'est exécuté — ne constitue pas un conseil financier

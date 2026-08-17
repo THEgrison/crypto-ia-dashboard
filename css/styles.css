@@ -199,14 +199,67 @@ body {
   opacity: 0.45;
 }
 
-/* ── Ticker pills & disclaimer ── */
-.ticker-pills {
+/* ── Barre d'outils : watchlist & actualisation ── */
+.toolbar {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.375rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
   padding: 0.625rem 1.5rem;
   background: var(--bg-secondary);
   border-bottom: 1px solid var(--border);
+}
+
+.toolbar__tickers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+
+.refresh-control {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.refresh-control__group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.refresh-control__label {
+  font-size: 0.625rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+
+.refresh-control__update {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.02em;
+  color: var(--text-muted);
+  padding-right: 0.5rem;
+  border-right: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.refresh-control__update[data-state='fresh'] {
+  color: var(--text-secondary);
+}
+
+.pill--action {
+  border-style: solid;
+  color: var(--text-primary);
+}
+
+.pill--action[aria-busy='true'] {
+  opacity: 0.5;
+  cursor: progress;
 }
 
 .disclaimer-strip {
@@ -994,10 +1047,15 @@ body {
     padding: 0.75rem 1rem;
   }
 
-  .ticker-pills,
+  .toolbar,
   .disclaimer-strip {
     padding-left: 1rem;
     padding-right: 1rem;
+  }
+
+  .refresh-control {
+    width: 100%;
+    justify-content: flex-start;
   }
 
   .rec-stats {

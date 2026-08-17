@@ -119,7 +119,7 @@ crypto-ia-dashboard/
 | Signal Acheter / Vendre / Attendre | Calcul local | heuristique MA7 + variation 24h |
 | News et niveaux de sérénité | Données de démonstration | — |
 
-Les données sont rafraîchies automatiquement toutes les 60 secondes (`refreshIntervalMs`).
+Les données sont rafraîchies automatiquement toutes les 60 secondes. La barre d'outils affiche l'heure et l'ancienneté de la dernière mise à jour, et permet de choisir la fréquence (30 s, 1 min, 5 min ou manuel) ainsi que de forcer une actualisation. Le choix est mémorisé dans le navigateur ; `refreshIntervalMs` de `js/config.js` sert de valeur par défaut à la première visite.
 
 ### Brancher de vraies news
 
