@@ -223,6 +223,14 @@ class DashboardHandler(SimpleHTTPRequestHandler):
             self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
         super().end_headers()
 
+    def handle_one_request(self) -> None:
+        # Recharger la page coupe les transferts en cours. Sans ce filet, Python
+        # déverse une trace d'appels alarmante alors que rien n'est cassé.
+        try:
+            super().handle_one_request()
+        except (BrokenPipeError, ConnectionResetError):
+            self.close_connection = True
+
     def log_message(self, fmt: str, *args) -> None:
         if "/api/" in self.path or self.path in ("/", "/index.html"):
             super().log_message(fmt, *args)
