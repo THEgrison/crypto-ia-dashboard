@@ -139,7 +139,7 @@ const CoinGecko = (() => {
   }
 
   /** GET /coins/markets — prix, volume 24h, market cap, variation. */
-  async function fetchMarkets(ids) {
+  async function fetchMarkets(ids, { sparkline = false } = {}) {
     const idList = [...new Set(ids.filter(Boolean))];
     if (!idList.length) return [];
 
@@ -149,9 +149,31 @@ const CoinGecko = (() => {
       order: 'market_cap_desc',
       per_page: idList.length,
       page: 1,
-      sparkline: 'false',
+      sparkline: sparkline ? 'true' : 'false',
       price_change_percentage: '24h,7d',
     });
+  }
+
+  /**
+   * Signal déduit d'une ligne /coins/markets seule, pour couvrir toute la
+   * watchlist en une requête. Le sparkline (168 points horaires sur 7 jours)
+   * sert de moyenne de référence, à la place des chandelles journalières
+   * utilisées pour la crypto affichée : les deux donnent des seuils cohérents.
+   */
+  function signalFromMarket(row) {
+    const change24h =
+      row.price_change_percentage_24h_in_currency ?? row.price_change_percentage_24h ?? 0;
+    const prices = row.sparkline_in_7d?.price || [];
+    const average = prices.length
+      ? prices.reduce((sum, price) => sum + price, 0) / prices.length
+      : null;
+    const aboveMa = average !== null ? row.current_price > average : change24h > 0;
+
+    let signal = 'wait';
+    if (change24h > 2 && aboveMa) signal = 'buy';
+    else if (change24h < -2 && !aboveMa) signal = 'sell';
+
+    return { signal, change24h, price: row.current_price };
   }
 
   async function fetchMarketForSymbol(symbol) {
@@ -338,6 +360,7 @@ const CoinGecko = (() => {
     searchCoins,
     fetchMarkets,
     fetchMarketForSymbol,
+    signalFromMarket,
     refreshCrypto,
     applyLiveData,
     formatMarketCap,

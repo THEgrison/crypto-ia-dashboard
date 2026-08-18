@@ -60,6 +60,7 @@
           <button type="button" class="pill" data-interval="0" aria-pressed="false">Manuel</button>
         </div>
         <button type="button" class="pill pill--action" id="refresh-now">Actualiser</button>
+        <button type="button" class="pill pill--action" id="mute-alerts" aria-pressed="true">Alertes actives</button>
       </div>
     </div>
 
@@ -219,6 +220,9 @@
     </footer>
   </div>
 
+  <!-- Alertes de signaux -->
+  <div class="toast-stack" id="toast-stack" aria-live="polite" aria-label="Alertes de signaux"></div>
+
   <!-- Visually hidden utility -->
   <style>
     .visually-hidden {
@@ -239,6 +243,7 @@
   <script src="js/charts.js"></script>
   <script src="js/api.js"></script>
   <script src="js/news.js"></script>
+  <script src="js/notifications.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

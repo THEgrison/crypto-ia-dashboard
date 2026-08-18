@@ -23,6 +23,7 @@ Un tableau de bord noir et blanc façon terminal de trading, dense et anguleux, 
 - **News & annonces** — actualités réelles agrégées depuis quatre flux RSS crypto et filtrées sur la crypto affichée, chacune portant un « niveau de sérénité » (calme, neutre, tendu, alarmant) rendu en nuances de gris et motifs
 - **Hold long terme** — cryptos à faible volatilité, avec capitalisation et tendance
 - **Court terme / volatilité** — cryptos à forte volatilité récente, avec momentum
+- **Alertes de signaux** — notification verte à l'achat, rouge à la vente, dès qu'une crypto de la watchlist bascule ; chacune se ferme d'une croix et un bouton coupe l'ensemble
 
 La recherche accepte n'importe quelle crypto référencée par CoinGecko, pas seulement celles de la watchlist.
 
@@ -107,6 +108,7 @@ crypto-ia-dashboard/
     ├── data.js           # Données de démonstration et utilitaires
     ├── api.js            # Client CoinGecko
     ├── news.js           # Client du proxy news
+    ├── notifications.js  # Alertes de signaux achat/vente
     ├── charts.js         # Rendu Canvas des graphiques
     └── app.js            # Logique d'interface
 ```
@@ -124,6 +126,14 @@ crypto-ia-dashboard/
 | Niveaux de sérénité | Calcul local | analyse lexicale du titre et du résumé |
 
 Les données sont rafraîchies automatiquement toutes les 60 secondes. La barre d'outils affiche l'heure et l'ancienneté de la dernière mise à jour, et permet de choisir la fréquence (30 s, 1 min, 5 min ou manuel) ainsi que de forcer une actualisation. Le choix est mémorisé dans le navigateur ; `refreshIntervalMs` de `js/config.js` sert de valeur par défaut à la première visite.
+
+### Alertes de signaux
+
+Les huit cryptos de la watchlist sont surveillées à chaque rafraîchissement, en une seule requête : `/coins/markets` renvoie au passage un *sparkline* de 168 points horaires sur 7 jours, dont la moyenne tient lieu de référence à la place des chandelles journalières utilisées pour la crypto affichée.
+
+Une notification n'apparaît que lorsqu'une crypto **bascule** vers l'achat ou la vente, jamais tant qu'elle reste dans le même état — sinon chaque cycle rejouerait les mêmes alertes. Les seuils sont ceux du panneau de recommandation : plus de 2 % sur 24 h au-dessus de la moyenne pour un achat, moins de −2 % en dessous pour une vente. En marché calme, il est donc normal de n'en voir aucune.
+
+La pile est plafonnée à quatre notifications et le réglage de la sourdine est mémorisé dans le navigateur.
 
 ### Comment fonctionnent les news
 

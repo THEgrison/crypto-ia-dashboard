@@ -56,7 +56,12 @@
     statCap: document.getElementById('stat-cap'),
     lastUpdate: document.getElementById('last-update'),
     refreshNow: document.getElementById('refresh-now'),
+    toastStack: document.getElementById('toast-stack'),
+    muteAlerts: document.getElementById('mute-alerts'),
   };
+
+  /* Dernier signal connu par crypto : sert à n'alerter que sur les basculements. */
+  const signalState = new Map();
 
   function loadRefreshInterval() {
     const fallback = window.COINGECKO_CONFIG?.refreshIntervalMs ?? 60_000;
@@ -100,6 +105,7 @@
     bindChartControls();
     bindRefreshControls();
     bindResize();
+    Notifier.init({ container: els.toastStack, toggle: els.muteAlerts });
 
     setApiStatus('loading', 'Connexion CoinGecko…');
 
@@ -110,6 +116,40 @@
     /* /coins/list pèse plusieurs Mo : chargé en tâche de fond pour la recherche. */
     CoinGecko.loadCoinsList().catch((err) => console.warn('[CoinGecko list]', err.message));
     refreshListSections();
+    scanSignals({ initial: true });
+  }
+
+  /**
+   * Surveille toute la watchlist en une seule requête grâce au sparkline, et
+   * n'alerte que sur les basculements : sans cela, chaque rafraîchissement
+   * rejouerait les mêmes signaux.
+   */
+  async function scanSignals({ initial = false } = {}) {
+    const ids = WATCHLIST.map((sym) => CoinGecko.resolveId(sym)).filter(Boolean);
+    if (!ids.length) return;
+
+    try {
+      const rows = await CoinGecko.fetchMarkets(ids, { sparkline: true });
+      const alerts = [];
+
+      rows.forEach((row) => {
+        const symbol = row.symbol.toUpperCase();
+        const { signal, change24h, price } = CoinGecko.signalFromMarket(row);
+        const previous = signalState.get(symbol);
+        signalState.set(symbol, signal);
+
+        const actionable = signal === 'buy' || signal === 'sell';
+        const isNew = previous === undefined;
+        if (actionable && (initial ? isNew : !isNew && previous !== signal)) {
+          alerts.push({ symbol, name: row.name, signal, price, change24h });
+        }
+      });
+
+      /* Au premier balayage, un marché entier peut être actionnable : on limite le flot. */
+      Notifier.pushMany(initial ? alerts.slice(0, 3) : alerts);
+    } catch (err) {
+      console.warn('[Signaux]', err.message);
+    }
   }
 
   async function refreshListSections() {
@@ -200,7 +240,7 @@
   }
 
   async function refreshNow() {
-    const tasks = [refreshListSections()];
+    const tasks = [refreshListSections(), scanSignals()];
     if (CoinGecko.isSupported(currentSymbol, currentCoinId)) {
       tasks.push(selectCrypto(currentSymbol, { coinId: currentCoinId }));
     }
