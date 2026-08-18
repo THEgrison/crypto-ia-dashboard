@@ -132,7 +132,7 @@ const Chat = (() => {
   function setSource(value) {
     if (!value || value === source) return;
     source = value;
-    els.badge.textContent = value === 'groq' ? 'Groq · Llama 3.3' : 'Mode local';
+    els.badge.textContent = value === 'groq' ? 'Groq · gpt-oss-20b' : 'Mode local';
     els.badge.title =
       value === 'groq'
         ? 'Réponses générées par un modèle de langage via server.py'

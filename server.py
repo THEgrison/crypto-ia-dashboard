@@ -82,7 +82,9 @@ SERENITY_KEYWORDS = {
 }
 
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
-GROQ_MODEL = "llama-3.3-70b-versatile"
+# Llama 3.3 70B a été retiré le 16 août 2026 ; gpt-oss-20b est le remplaçant
+# recommandé par Groq pour le plan gratuit.
+GROQ_MODEL = os.environ.get("GROQ_MODEL", "openai/gpt-oss-20b")
 CHAT_TIMEOUT = 30
 MAX_HISTORY = 12
 
@@ -293,19 +295,30 @@ def ask_groq(messages: list[dict], ctx: dict, key: str) -> str:
         "messages": [{"role": "system", "content": SYSTEM_PROMPT + describe_context(ctx)}]
         + messages[-MAX_HISTORY:],
         "temperature": 0.3,
-        "max_tokens": 400,
+        "max_tokens": 800,
     }
 
     request = urllib.request.Request(
         GROQ_URL,
         data=json.dumps(payload).encode("utf-8"),
-        headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+        headers={
+            "Authorization": f"Bearer {key}",
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            # Cloudflare bloque le User-Agent par défaut de urllib (erreur 1010).
+            "User-Agent": USER_AGENT,
+        },
+        method="POST",
     )
 
     with urllib.request.urlopen(request, timeout=CHAT_TIMEOUT) as response:
         body = json.loads(response.read())
 
-    return body["choices"][0]["message"]["content"].strip()
+    message = body["choices"][0]["message"]
+    text = (message.get("content") or "").strip()
+    if not text:
+        raise RuntimeError("Groq a renvoyé une réponse vide")
+    return text
 
 
 def local_reply(question: str, ctx: dict) -> str:
@@ -392,12 +405,17 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         except urllib.error.HTTPError as exc:
             detail = exc.read().decode("utf-8", "replace")[:200]
             print(f"[chat] Groq {exc.code} : {detail}", file=sys.stderr)
+            warning = (
+                "Groq a bloqué la requête (Cloudflare 1010). Relancez python3 server.py après mise à jour."
+                if "1010" in detail
+                else f"Groq a renvoyé une erreur {exc.code}, repli sur l'assistant local."
+            )
             self.send_json(
                 200,
                 {
                     "reply": local_reply(question, context),
                     "source": "local",
-                    "warning": f"Groq a renvoyé une erreur {exc.code}, repli sur l'assistant local.",
+                    "warning": warning,
                 },
             )
         except Exception as exc:
