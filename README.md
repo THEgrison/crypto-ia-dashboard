@@ -24,6 +24,7 @@ Un tableau de bord noir et blanc façon terminal de trading, dense et anguleux, 
 - **Hold long terme** — cryptos à faible volatilité, avec capitalisation et tendance
 - **Court terme / volatilité** — cryptos à forte volatilité récente, avec momentum
 - **Alertes de signaux** — notification verte à l'achat, rouge à la vente, dès qu'une crypto de la watchlist bascule ; chacune se ferme d'une croix et un bouton coupe l'ensemble
+- **Assistant** — bouton en bas à droite, fenêtre de conversation collée au dashboard : questions sur le timing, le volume ou les news de la crypto affichée
 
 La recherche accepte n'importe quelle crypto référencée par CoinGecko, pas seulement celles de la watchlist.
 
@@ -100,7 +101,19 @@ L'indicateur en haut à droite affiche l'état de la connexion : `Prix live · C
 ```
 crypto-ia-dashboard/
 ├── index.html            # Structure du dashboard
-├── server.py             # Serveur statique + agrégation RSS (/api/news)
+├── server.py             # Serveur statique + agrégation RSS (/api/news) + assistant (/api/chat)
+├── .env.example          # Modèle de la clé Groq (facultative)
+├── assets/logo.png       # Logo et favicon
+├── css/styles.css        # Thème sombre anguleux
+└── js/
+    ├── config.js         # Clé API et paramètres de rafraîchissement
+    ├── data.js           # Données de démonstration et utilitaires
+    ├── api.js            # Client CoinGecko
+    ├── news.js           # Client du proxy news
+    ├── notifications.js  # Alertes de signaux achat/vente
+    ├── chat.js           # Widget de conversation
+    ├── charts.js         # Rendu Canvas des graphiques
+    └── app.js            # Logique d'interface
 ├── assets/logo.png       # Logo et favicon
 ├── css/styles.css        # Thème sombre anguleux
 └── js/
@@ -149,6 +162,18 @@ Une notification n'apparaît que lorsqu'une crypto **bascule** vers l'achat ou l
 
 La pile est plafonnée à quatre notifications et le réglage de la sourdine est mémorisé dans le navigateur.
 
+### Assistant conversationnel
+
+Le bouton **Parler à Crypto IA**, en bas à droite, ouvre une fenêtre collée au dashboard. L'assistant reçoit un instantané de la crypto affichée (prix, signal, profil, volumes, titres des news) et s'en sert pour répondre. Il n'exécute aucun ordre et n'est pas autorisé à inventer un chiffre absent de ces données.
+
+Sans clé de modèle, `server.py` répond quand même, en reformulant uniquement ce que le dashboard affiche déjà. Pour des réponses plus naturelles, une clé Groq (gratuite) suffit :
+
+1. Créez une clé sur [console.groq.com/keys](https://console.groq.com/keys)
+2. Copiez `.env.example` en `.env` et collez-la : `GROQ_API_KEY=gsk_...`
+3. Relancez `python3 server.py`
+
+Le fichier `.env` n'est pas versionné. La clé reste côté serveur : le navigateur n'envoie que la question et l'instantané des données affichées.
+
 ### Comment fonctionnent les news
 
 CoinGecko ne fournit pas d'actualités sur le plan Demo : son endpoint `/news` est réservé aux abonnés Pro. Les flux RSS des sites crypto, eux, ne renvoient pas d'en-tête `Access-Control-Allow-Origin`, ce qui interdit au navigateur de les lire depuis une page statique.
@@ -159,10 +184,11 @@ Quand une crypto peu couverte ne remonte pas assez d'articles, le panneau est co
 
 ## Sécurité
 
-Ce projet est entièrement côté navigateur, sans backend. **Toute clé placée dans `js/config.js` est visible par quiconque ouvre les outils de développement** sur une instance déployée publiquement.
+Le dashboard s'exécute dans le navigateur ; `server.py` n'est qu'un relais local (fichiers, news, assistant). **Toute clé placée dans `js/config.js` est visible par quiconque ouvre les outils de développement** sur une instance déployée publiquement.
 
-- Une clé **Demo** reste peu sensible : quota limité, aucun accès au compte.
-- Pour un déploiement public, faites transiter les appels par une fonction serverless qui masque la clé.
+- Une clé CoinGecko **Demo** reste peu sensible : quota limité, aucun accès au compte.
+- La clé Groq, elle, ne doit **jamais** aller dans `js/config.js` : elle vit dans `.env` ou dans la variable d'environnement `GROQ_API_KEY`.
+- Pour un déploiement public, faites transiter les appels CoinGecko par une fonction serverless qui masque la clé.
 - N'exposez **jamais** une clé **Pro** côté client.
 - `js/config.js` étant versionné, appliquez `git update-index --skip-worktree js/config.js` après y avoir mis votre clé, sinon un `git push` la publierait.
 

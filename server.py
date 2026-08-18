@@ -1,14 +1,23 @@
 #!/usr/bin/env python3
 """
-Serveur local du dashboard : fichiers statiques + agrégation des news RSS.
+Serveur local du dashboard : fichiers statiques, news RSS et assistant.
 
-Les flux RSS crypto et les API de news ne renvoient pas d'en-tête
-`Access-Control-Allow-Origin`. Le navigateur refuse donc de les charger depuis
-une page statique. Ce script sert le dashboard et expose `/api/news`, qui
-récupère les flux côté serveur — où la politique CORS ne s'applique pas — et
-les renvoie en JSON.
+Deux problèmes justifient ce serveur, tous deux insolubles depuis une page
+statique :
+
+- les flux RSS crypto ne renvoient pas d'en-tête `Access-Control-Allow-Origin`,
+  donc le navigateur refuse de les charger ; `/api/news` les récupère côté
+  serveur, où la politique CORS ne s'applique pas ;
+- une clé d'API de modèle de langage placée dans le JavaScript serait lisible
+  par n'importe quel visiteur ; `/api/chat` la garde côté serveur.
 
 Usage : python3 server.py [port]        (port 8080 par défaut)
+
+Clé Groq (facultative, active l'assistant conversationnel) :
+    export GROQ_API_KEY=gsk_...
+    ou une ligne GROQ_API_KEY=gsk_... dans un fichier .env non versionné.
+
+Sans clé, l'assistant répond quand même à partir des données du dashboard.
 
 Aucune dépendance externe : bibliothèque standard uniquement.
 """
@@ -17,10 +26,12 @@ from __future__ import annotations
 
 import html
 import json
+import os
 import re
 import sys
 import threading
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
@@ -70,8 +81,31 @@ SERENITY_KEYWORDS = {
     ],
 }
 
+GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
+GROQ_MODEL = "llama-3.3-70b-versatile"
+CHAT_TIMEOUT = 30
+MAX_HISTORY = 12
+
 _cache: dict[str, object] = {"items": [], "fetched_at": 0.0}
 _lock = threading.Lock()
+
+
+def api_key() -> str:
+    """L'environnement prime ; le fichier .env évite d'exporter la variable à chaque session."""
+    key = os.environ.get("GROQ_API_KEY", "").strip()
+    if key:
+        return key
+
+    env_file = ROOT / ".env"
+    if not env_file.exists():
+        return ""
+
+    for line in env_file.read_text(encoding="utf-8").splitlines():
+        name, _, value = line.partition("=")
+        if name.strip() == "GROQ_API_KEY":
+            return value.strip().strip("\"'")
+
+    return ""
 
 
 def strip_html(raw: str) -> str:
@@ -189,13 +223,193 @@ def news_for(symbol: str, name: str, coin_id: str, limit: int = 6) -> list[dict]
     return (matched + others)[:limit]
 
 
+SIGNAL_LABELS = {"buy": "Acheter", "sell": "Vendre", "wait": "Attendre"}
+
+SYSTEM_PROMPT = """Tu es l'assistant d'analyse du dashboard « Crypto IA ».
+
+Règles impératives :
+- Tu expliques et mets en perspective, tu ne recommandes jamais d'acheter ou de vendre.
+- Tu ne promets aucun gain et ne garantis aucun résultat ; tu rappelles l'incertitude
+  quand la question cherche une certitude.
+- Tu t'appuies sur les données ci-dessous. Si une information manque, tu le dis au
+  lieu de l'inventer, et tu ne cites aucun chiffre absent de ces données.
+- Le dashboard n'exécute aucun ordre : ne propose jamais d'en passer un.
+- Tu réponds en français, en quatre phrases maximum, sans liste à puces sauf demande
+  explicite d'énumération.
+
+État du dashboard au moment de la question :
+"""
+
+
+def fmt_usd(value) -> str:
+    if not value:
+        return "non disponible"
+    if value >= 1e12:
+        return f"{value / 1e12:.2f} mille milliards $"
+    if value >= 1e9:
+        return f"{value / 1e9:.1f} milliards $"
+    if value >= 1e6:
+        return f"{value / 1e6:.0f} millions $"
+    return f"{value:,.2f} $".replace(",", " ")
+
+
+def fmt_pct(value) -> str:
+    if value is None:
+        return "non disponible"
+    return f"{value:+.2f} %"
+
+
+def describe_context(ctx: dict) -> str:
+    if not ctx:
+        return "Aucune donnée transmise par le dashboard."
+
+    profile = ctx.get("profile") or {}
+    lines = [
+        f"Crypto affichée : {ctx.get('name')} ({ctx.get('symbol')})",
+        f"Prix : {fmt_usd(ctx.get('price'))}",
+        f"Variation 24 h : {fmt_pct(ctx.get('change24h'))}",
+        f"Capitalisation : {fmt_usd(ctx.get('marketCap'))}",
+        f"Signal calculé : {SIGNAL_LABELS.get(ctx.get('signal'), 'inconnu')}"
+        f" (confiance {ctx.get('confidence', '?')} %)",
+        f"Commentaire de timing : {ctx.get('timing')}",
+        f"Profil de calibrage : {profile.get('label')}"
+        f" — seuil {profile.get('threshold')} % sur {profile.get('window')}",
+        f"Prix vs moyenne 7 jours : {'au-dessus' if ctx.get('aboveMa') else 'en dessous'}",
+        f"Volume 24 h : {fmt_usd(ctx.get('volume24h'))}"
+        f" (moyenne {fmt_usd(ctx.get('volumeAverage24h'))})",
+    ]
+
+    news = ctx.get("news") or []
+    if news:
+        lines.append("Dernières actualités et leur tonalité :")
+        lines += [f"  - [{n.get('serenity', 'neutre')}] {n.get('title')}" for n in news[:5]]
+
+    return "\n".join(lines)
+
+
+def ask_groq(messages: list[dict], ctx: dict, key: str) -> str:
+    payload = {
+        "model": GROQ_MODEL,
+        "messages": [{"role": "system", "content": SYSTEM_PROMPT + describe_context(ctx)}]
+        + messages[-MAX_HISTORY:],
+        "temperature": 0.3,
+        "max_tokens": 400,
+    }
+
+    request = urllib.request.Request(
+        GROQ_URL,
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+    )
+
+    with urllib.request.urlopen(request, timeout=CHAT_TIMEOUT) as response:
+        body = json.loads(response.read())
+
+    return body["choices"][0]["message"]["content"].strip()
+
+
+def local_reply(question: str, ctx: dict) -> str:
+    """
+    Repli sans modèle : reformule les données du dashboard. Volontairement
+    déterministe, pour ne jamais avancer autre chose que ce qui est affiché.
+    """
+    if not ctx:
+        return "Je n'ai pas reçu les données du dashboard, je ne peux donc rien analyser."
+
+    q = question.lower()
+    symbol = ctx.get("symbol") or "cette crypto"
+    profile = ctx.get("profile") or {}
+    signal = SIGNAL_LABELS.get(ctx.get("signal"), "Attendre")
+    side = "au-dessus" if ctx.get("aboveMa") else "en dessous"
+
+    if any(word in q for word in ("volume", "liquidit", "échange", "echange")):
+        current = ctx.get("volume24h") or 0
+        average = ctx.get("volumeAverage24h") or 0
+        ratio = (current / average * 100) if average else 0
+        return (
+            f"Le volume 24 h de {symbol} atteint {fmt_usd(current)}, soit {ratio:.0f} % de sa moyenne "
+            f"({fmt_usd(average)}). Un mouvement de prix accompagné d'un volume supérieur à la moyenne "
+            "est généralement considéré comme mieux confirmé, sans que cela constitue une certitude."
+        )
+
+    if any(word in q for word in ("news", "actualit", "annonce", "sérénité", "serenite")):
+        news = ctx.get("news") or []
+        if not news:
+            return "Aucune actualité n'est chargée pour le moment."
+        tones = ", ".join(f"{n.get('title')} ({n.get('serenity', 'neutre')})" for n in news[:3])
+        return f"Les dernières actualités sur {symbol} sont : {tones}."
+
+    if any(word in q for word in ("tendance", "moyenne", "graphique", "chandelle")):
+        return (
+            f"{symbol} cote {fmt_usd(ctx.get('price'))}, {fmt_pct(ctx.get('change24h'))} sur 24 h, "
+            f"et se situe {side} de sa moyenne 7 jours. Cette position sert justement de garde-fou : "
+            "un rebond sous la moyenne ne suffit pas à déclencher un signal d'achat."
+        )
+
+    return (
+        f"Le signal sur {symbol} est « {signal} » avec le profil {profile.get('label')} "
+        f"(seuil {profile.get('threshold')} % sur {profile.get('window')}), et le prix est {side} "
+        f"de sa moyenne 7 jours. {ctx.get('timing') or ''} "
+        "Ce n'est pas un conseil d'investissement, "
+        "et les performances passées ne préjugent pas des performances futures."
+    )
+
+
 class DashboardHandler(SimpleHTTPRequestHandler):
     def do_GET(self) -> None:
         parsed = urllib.parse.urlparse(self.path)
         if parsed.path == "/api/news":
             self.serve_news(urllib.parse.parse_qs(parsed.query))
             return
+        if parsed.path == "/api/chat":
+            self.send_json(200, {"available": True, "model": "groq" if api_key() else "local"})
+            return
         super().do_GET()
+
+    def do_POST(self) -> None:
+        if urllib.parse.urlparse(self.path).path != "/api/chat":
+            self.send_error(404, "Not Found")
+            return
+
+        try:
+            length = int(self.headers.get("Content-Length") or 0)
+            body = json.loads(self.rfile.read(length) or b"{}")
+        except (ValueError, json.JSONDecodeError) as exc:
+            self.send_json(400, {"error": f"Requête illisible : {exc}"})
+            return
+
+        messages = [m for m in body.get("messages", []) if m.get("content")]
+        context = body.get("context") or {}
+        question = messages[-1]["content"] if messages else ""
+
+        key = api_key()
+        if not key:
+            self.send_json(200, {"reply": local_reply(question, context), "source": "local"})
+            return
+
+        try:
+            self.send_json(200, {"reply": ask_groq(messages, context, key), "source": "groq"})
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", "replace")[:200]
+            print(f"[chat] Groq {exc.code} : {detail}", file=sys.stderr)
+            self.send_json(
+                200,
+                {
+                    "reply": local_reply(question, context),
+                    "source": "local",
+                    "warning": f"Groq a renvoyé une erreur {exc.code}, repli sur l'assistant local.",
+                },
+            )
+        except Exception as exc:
+            print(f"[chat] {exc}", file=sys.stderr)
+            self.send_json(
+                200,
+                {
+                    "reply": local_reply(question, context),
+                    "source": "local",
+                    "warning": "Modèle injoignable, repli sur l'assistant local.",
+                },
+            )
 
     def serve_news(self, query: dict[str, list[str]]) -> None:
         def param(key: str) -> str:
@@ -243,6 +457,10 @@ def main() -> None:
     with ThreadingHTTPServer(("127.0.0.1", port), handler) as server:
         print(f"Dashboard  → http://localhost:{port}")
         print(f"News       → http://localhost:{port}/api/news?symbol=BTC&name=Bitcoin")
+        print(
+            "Assistant  → "
+            + ("Groq actif" if api_key() else "mode local (aucune clé GROQ_API_KEY détectée)")
+        )
         print("Ctrl+C pour arrêter.")
         try:
             server.serve_forever()

@@ -166,6 +166,19 @@
     bindProfileControls();
     bindResize();
     Notifier.init({ container: els.toastStack, toggle: els.muteAlerts });
+    Chat.init({
+      elements: {
+        toggle: document.getElementById('chat-toggle'),
+        panel: document.getElementById('chat-panel'),
+        close: document.getElementById('chat-close'),
+        log: document.getElementById('chat-log'),
+        form: document.getElementById('chat-form'),
+        input: document.getElementById('chat-input'),
+        send: document.getElementById('chat-send'),
+        badge: document.getElementById('chat-badge'),
+      },
+      getContext: snapshotContext,
+    });
 
     setApiStatus('loading', 'Connexion CoinGecko…');
 
@@ -477,6 +490,39 @@
         live ? 'flux RSS agrégés' : 'données de démonstration'
       }`;
     }
+  }
+
+  /**
+   * Instantané envoyé à l'assistant. Uniquement des champs déjà affichés :
+   * le modèle n'a pas à inventer un prix ou un signal qu'on n'a pas sous les yeux.
+   */
+  function snapshotContext() {
+    const data = CRYPTO_DATA[currentSymbol];
+    if (!data) return {};
+
+    const candles = data.candles || [];
+    const lastMa = computeMA(candles, 7).filter((v) => v !== null).at(-1);
+    const profile = CoinGecko.SIGNAL_PROFILES[signalProfile];
+
+    return {
+      symbol: data.symbol,
+      name: data.name,
+      price: data.price,
+      change24h: data.change24h,
+      marketCap: data.marketCap,
+      signal: data.recommendation?.signal,
+      confidence: data.recommendation?.confidence,
+      timing: data.recommendation?.timing,
+      aboveMa: lastMa != null ? data.price > lastMa : data.change24h > 0,
+      volume24h: data.volume?.current24h,
+      volumeAverage24h: data.volume?.average24h,
+      profile: { label: profile.label, threshold: profile.threshold, window: profile.window },
+      news: (data.news || []).slice(0, 5).map((n) => ({
+        title: n.title,
+        serenity: n.serenity,
+        scope: n.scope,
+      })),
+    };
   }
 
   function renderCharts(data) {

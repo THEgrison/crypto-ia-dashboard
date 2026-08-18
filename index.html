@@ -233,6 +233,35 @@
   <!-- Alertes de signaux -->
   <div class="toast-stack" id="toast-stack" aria-live="polite" aria-label="Alertes de signaux"></div>
 
+  <!-- Assistant -->
+  <div class="chat">
+    <section class="chat-panel" id="chat-panel" hidden>
+      <header class="chat-panel__header">
+        <img class="chat-panel__logo" src="assets/logo.png" alt="" width="28" height="28">
+        <div>
+          <h2 class="chat-panel__title">Parler à Crypto IA</h2>
+          <p class="chat-panel__badge" id="chat-badge">Analyse du dashboard</p>
+        </div>
+        <button type="button" class="chat-panel__close" id="chat-close" aria-label="Fermer l'assistant">×</button>
+      </header>
+      <div class="chat-log" id="chat-log" aria-live="polite"></div>
+      <div class="chat-prompts" role="group" aria-label="Questions fréquentes">
+        <button type="button" class="pill" data-prompt="Est-ce un bon moment pour entrer sur cette crypto ?">Timing</button>
+        <button type="button" class="pill" data-prompt="Que dit le volume par rapport à la moyenne ?">Volume</button>
+        <button type="button" class="pill" data-prompt="Les actualités sont-elles calmes ou tendues ?">News</button>
+      </div>
+      <form class="chat-form" id="chat-form">
+        <label class="visually-hidden" for="chat-input">Votre question</label>
+        <input id="chat-input" class="chat-form__input" type="text" maxlength="400" autocomplete="off" placeholder="Question sur le signal, le timing…">
+        <button type="submit" class="pill pill--action" id="chat-send">Envoyer</button>
+      </form>
+    </section>
+    <button type="button" class="chat-toggle" id="chat-toggle" aria-expanded="false" aria-controls="chat-panel">
+      <img src="assets/logo.png" alt="" width="28" height="28">
+      <span>Parler à Crypto IA</span>
+    </button>
+  </div>
+
   <!-- Visually hidden utility -->
   <style>
     .visually-hidden {
@@ -254,6 +283,7 @@
   <script src="js/api.js"></script>
   <script src="js/news.js"></script>
   <script src="js/notifications.js"></script>
+  <script src="js/chat.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>
