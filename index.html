@@ -85,6 +85,16 @@
           <span class="rec-change is-positive" id="rec-change">+2,34%</span>
         </div>
 
+        <div class="rec-profile">
+          <div class="rec-profile__group" role="group" aria-label="Calibrage du signal">
+            <span class="rec-profile__label">Profil</span>
+            <button type="button" class="pill" data-profile="short" aria-pressed="false">Court terme</button>
+            <button type="button" class="pill" data-profile="balanced" aria-pressed="true">Équilibré</button>
+            <button type="button" class="pill" data-profile="long" aria-pressed="false">Long terme</button>
+          </div>
+          <p class="rec-profile__hint" id="rec-profile-hint">Bascule au-delà de 2 % sur 24 h — compromis par défaut</p>
+        </div>
+
         <div class="rec-signal">
           <div class="rec-signal__label">Signal</div>
           <div class="rec-signal__value" id="rec-signal" data-signal="buy">Acheter</div>

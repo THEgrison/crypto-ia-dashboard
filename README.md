@@ -17,7 +17,7 @@
 
 Un tableau de bord noir et blanc façon terminal de trading, dense et anguleux, qui regroupe :
 
-- **Recommandation** — signal Acheter / Vendre / Attendre, niveau de confiance, suggestion de timing, prix, variation 24h et capitalisation
+- **Recommandation** — signal Acheter / Vendre / Attendre calibrable selon l'horizon de trading, niveau de confiance, suggestion de timing, prix, variation 24h et capitalisation
 - **Graphique de prix** — 30 jours, avec quatre modes d'affichage au choix (chandelles, barres OHLC, ligne, aire) et moyennes mobiles MA7 / MA25 activables
 - **Volumes** — volume 24h, moyenne, écart vs moyenne et historique sur 14 jours
 - **News & annonces** — actualités réelles agrégées depuis quatre flux RSS crypto et filtrées sur la crypto affichée, chacune portant un « niveau de sérénité » (calme, neutre, tendu, alarmant) rendu en nuances de gris et motifs
@@ -127,11 +127,25 @@ crypto-ia-dashboard/
 
 Les données sont rafraîchies automatiquement toutes les 60 secondes. La barre d'outils affiche l'heure et l'ancienneté de la dernière mise à jour, et permet de choisir la fréquence (30 s, 1 min, 5 min ou manuel) ainsi que de forcer une actualisation. Le choix est mémorisé dans le navigateur ; `refreshIntervalMs` de `js/config.js` sert de valeur par défaut à la première visite.
 
+### Calibrer le signal
+
+Un signal se déclenche quand deux conditions se rejoignent : la variation dépasse un seuil, **et** le prix se situe du bon côté de sa moyenne 7 jours. Le profil choisi dans le panneau de recommandation règle la sensibilité de la première condition.
+
+| Profil | Fenêtre | Seuil | Usage |
+|---|---|---|---|
+| Court terme | 24 h | 1 % | Scalping et swing court — signaux fréquents, davantage de faux positifs |
+| Équilibré | 24 h | 2 % | Réglage par défaut |
+| Long terme | 7 jours | 5 % | Position longue — uniquement les mouvements structurels |
+
+Le choix est mémorisé dans le navigateur et s'applique aussi bien à la crypto affichée qu'aux alertes de la watchlist, pour qu'une notification ne contredise jamais le panneau principal.
+
+En marché calme, il est normal que le signal reste sur **Attendre** : c'est le comportement attendu, pas un dysfonctionnement. Passer en profil court terme fait apparaître les mouvements plus discrets. Pour aller plus loin, les seuils se modifient dans `SIGNAL_PROFILES`, en tête de `js/api.js`.
+
 ### Alertes de signaux
 
 Les huit cryptos de la watchlist sont surveillées à chaque rafraîchissement, en une seule requête : `/coins/markets` renvoie au passage un *sparkline* de 168 points horaires sur 7 jours, dont la moyenne tient lieu de référence à la place des chandelles journalières utilisées pour la crypto affichée.
 
-Une notification n'apparaît que lorsqu'une crypto **bascule** vers l'achat ou la vente, jamais tant qu'elle reste dans le même état — sinon chaque cycle rejouerait les mêmes alertes. Les seuils sont ceux du panneau de recommandation : plus de 2 % sur 24 h au-dessus de la moyenne pour un achat, moins de −2 % en dessous pour une vente. En marché calme, il est donc normal de n'en voir aucune.
+Une notification n'apparaît que lorsqu'une crypto **bascule** vers l'achat ou la vente, jamais tant qu'elle reste dans le même état — sinon chaque cycle rejouerait les mêmes alertes. Changer de profil réinitialise cette mémoire, puisque les seuils ne sont plus comparables.
 
 La pile est plafonnée à quatre notifications et le réglage de la sourdine est mémorisé dans le navigateur.
 

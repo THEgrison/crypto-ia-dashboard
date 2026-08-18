@@ -17,7 +17,9 @@
 
   const PREFS_KEY = 'crypto-ia-chart-prefs';
   const REFRESH_KEY = 'crypto-ia-refresh-interval';
+  const PROFILE_KEY = 'crypto-ia-signal-profile';
   const chartPrefs = loadChartPrefs();
+  let signalProfile = loadSignalProfile();
 
   let refreshIntervalMs = loadRefreshInterval();
   let lastUpdateAt = null;
@@ -58,6 +60,7 @@
     refreshNow: document.getElementById('refresh-now'),
     toastStack: document.getElementById('toast-stack'),
     muteAlerts: document.getElementById('mute-alerts'),
+    profileHint: document.getElementById('rec-profile-hint'),
   };
 
   /* Dernier signal connu par crypto : sert à n'alerter que sur les basculements. */
@@ -97,6 +100,62 @@
     }
   }
 
+  function loadSignalProfile() {
+    const stored = localStorage.getItem(PROFILE_KEY);
+    return CoinGecko.SIGNAL_PROFILES[stored] ? stored : CoinGecko.DEFAULT_PROFILE;
+  }
+
+  function saveSignalProfile() {
+    try {
+      localStorage.setItem(PROFILE_KEY, signalProfile);
+    } catch {
+      /* stockage indisponible (navigation privée) : préférence non persistée */
+    }
+  }
+
+  /* ── Calibrage du signal ── */
+  function bindProfileControls() {
+    document.querySelectorAll('[data-profile]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        if (btn.dataset.profile === signalProfile) return;
+
+        signalProfile = btn.dataset.profile;
+        saveSignalProfile();
+        syncProfileControls();
+        applyProfileToCurrent();
+
+        /* Les seuils ayant changé, l'historique des signaux n'est plus comparable. */
+        signalState.clear();
+        scanSignals({ initial: true });
+      });
+    });
+
+    syncProfileControls();
+  }
+
+  function syncProfileControls() {
+    document.querySelectorAll('[data-profile]').forEach((btn) => {
+      btn.setAttribute('aria-pressed', String(btn.dataset.profile === signalProfile));
+    });
+
+    if (els.profileHint) {
+      els.profileHint.textContent = CoinGecko.SIGNAL_PROFILES[signalProfile].hint;
+    }
+  }
+
+  /** Recalcule le signal affiché sans nouvel appel réseau : les chandelles sont déjà en mémoire. */
+  function applyProfileToCurrent() {
+    const data = CRYPTO_DATA[currentSymbol];
+    if (!data?.candles?.length) return;
+
+    data.recommendation = CoinGecko.computeLiveRecommendation(
+      data.candles,
+      data.change24h,
+      signalProfile
+    );
+    renderRecommendation(data);
+  }
+
   async function init() {
     renderLongTerm();
     renderShortTerm();
@@ -104,6 +163,7 @@
     bindSearch();
     bindChartControls();
     bindRefreshControls();
+    bindProfileControls();
     bindResize();
     Notifier.init({ container: els.toastStack, toggle: els.muteAlerts });
 
@@ -134,7 +194,7 @@
 
       rows.forEach((row) => {
         const symbol = row.symbol.toUpperCase();
-        const { signal, change24h, price } = CoinGecko.signalFromMarket(row);
+        const { signal, change24h, price } = CoinGecko.signalFromMarket(row, signalProfile);
         const previous = signalState.get(symbol);
         signalState.set(symbol, signal);
 
@@ -206,7 +266,7 @@
     els.recPrice.classList.add('is-loading');
 
     try {
-      const live = await CoinGecko.refreshCrypto(sym, currentCoinId);
+      const live = await CoinGecko.refreshCrypto(sym, currentCoinId, signalProfile);
       if (generation !== fetchGeneration) return;
 
       CoinGecko.applyLiveData(data, live);

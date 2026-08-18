@@ -273,6 +273,35 @@ body {
   text-decoration: line-through;
 }
 
+/* ── Calibrage du signal ── */
+.rec-profile {
+  margin-bottom: 1rem;
+  padding-bottom: 0.875rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.rec-profile__group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.rec-profile__label {
+  font-size: 0.625rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin-right: 0.25rem;
+}
+
+.rec-profile__hint {
+  margin-top: 0.5rem;
+  font-size: 0.6875rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
 /* ── Alertes de signaux ── */
 .toast-stack {
   position: fixed;

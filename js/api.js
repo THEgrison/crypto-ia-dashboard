@@ -23,6 +23,40 @@ const CoinGecko = (() => {
 
   const DAY_LABELS = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
 
+  /**
+   * Calibrage du signal. Le seuil et la fenêtre décident de la fréquence des
+   * basculements : un profil court sort souvent de « Attendre », un profil long
+   * ne réagit qu'aux mouvements structurels. La moyenne 7 jours sert de
+   * référence de tendance dans tous les cas, pour que la crypto affichée et la
+   * surveillance de la watchlist restent cohérentes.
+   */
+  const SIGNAL_PROFILES = {
+    short: {
+      label: 'Court terme',
+      hint: 'Bascule au-delà de 1 % sur 24 h — signaux fréquents, plus de bruit',
+      threshold: 1,
+      window: '24h',
+    },
+    balanced: {
+      label: 'Équilibré',
+      hint: 'Bascule au-delà de 2 % sur 24 h — compromis par défaut',
+      threshold: 2,
+      window: '24h',
+    },
+    long: {
+      label: 'Long terme',
+      hint: 'Bascule au-delà de 5 % sur 7 jours — mouvements structurels seulement',
+      threshold: 5,
+      window: '7d',
+    },
+  };
+
+  const DEFAULT_PROFILE = 'balanced';
+
+  function profileOf(key) {
+    return SIGNAL_PROFILES[key] || SIGNAL_PROFILES[DEFAULT_PROFILE];
+  }
+
   let coinsListCache = null;
   let symbolIndex = null;
 
@@ -154,26 +188,41 @@ const CoinGecko = (() => {
     });
   }
 
+  /** Décision commune aux deux sources de données, pour éviter toute divergence. */
+  function decide(change, aboveMa, threshold) {
+    let signal = 'wait';
+    if (change > threshold && aboveMa) signal = 'buy';
+    else if (change < -threshold && !aboveMa) signal = 'sell';
+
+    /* La confiance se mesure en multiples du seuil, donc reste comparable entre profils. */
+    const strength = (Math.abs(change) / threshold) * 10;
+    const confidence = Math.min(92, Math.max(45, Math.round(50 + strength + (aboveMa ? 5 : 0))));
+
+    return { signal, confidence };
+  }
+
   /**
    * Signal déduit d'une ligne /coins/markets seule, pour couvrir toute la
    * watchlist en une requête. Le sparkline (168 points horaires sur 7 jours)
    * sert de moyenne de référence, à la place des chandelles journalières
    * utilisées pour la crypto affichée : les deux donnent des seuils cohérents.
    */
-  function signalFromMarket(row) {
+  function signalFromMarket(row, profileKey) {
+    const prefs = profileOf(profileKey);
     const change24h =
       row.price_change_percentage_24h_in_currency ?? row.price_change_percentage_24h ?? 0;
+    const change7d = row.price_change_percentage_7d_in_currency ?? change24h;
+
     const prices = row.sparkline_in_7d?.price || [];
     const average = prices.length
       ? prices.reduce((sum, price) => sum + price, 0) / prices.length
       : null;
     const aboveMa = average !== null ? row.current_price > average : change24h > 0;
 
-    let signal = 'wait';
-    if (change24h > 2 && aboveMa) signal = 'buy';
-    else if (change24h < -2 && !aboveMa) signal = 'sell';
+    const change = prefs.window === '7d' ? change7d : change24h;
+    const { signal, confidence } = decide(change, aboveMa, prefs.threshold);
 
-    return { signal, change24h, price: row.current_price };
+    return { signal, confidence, change, change24h, price: row.current_price };
   }
 
   async function fetchMarketForSymbol(symbol) {
@@ -232,7 +281,17 @@ const CoinGecko = (() => {
       }));
   }
 
-  function computeLiveRecommendation(candles, change24h) {
+  /** Variation entre la dernière chandelle et celle de N jours plus tôt. */
+  function changeOverDays(candles, days) {
+    if (!candles || candles.length <= days) return null;
+    const past = candles[candles.length - 1 - days].close;
+    if (!past) return null;
+    return ((candles[candles.length - 1].close - past) / past) * 100;
+  }
+
+  function computeLiveRecommendation(candles, change24h, profileKey) {
+    const prefs = profileOf(profileKey);
+
     if (!candles?.length) {
       return {
         signal: 'wait',
@@ -246,29 +305,28 @@ const CoinGecko = (() => {
     const lastMaFast = maFast.filter((v) => v !== null).at(-1);
     const aboveMa = lastMaFast ? lastClose > lastMaFast : change24h > 0;
 
-    let signal = 'wait';
-    if (change24h > 2 && aboveMa) signal = 'buy';
-    else if (change24h < -2 && !aboveMa) signal = 'sell';
-
-    const confidence = Math.min(92, Math.max(45, Math.round(50 + Math.abs(change24h) * 4 + (aboveMa ? 5 : 0))));
+    const change = prefs.window === '7d' ? changeOverDays(candles, 7) ?? change24h : change24h;
+    const { signal, confidence } = decide(change, aboveMa, prefs.threshold);
+    const horizon = prefs.window === '7d' ? '7 jours' : '24 heures';
 
     const timingBySignal = {
       buy: aboveMa
-        ? 'Momentum haussier — entrée possible sur repli court'
+        ? `Momentum haussier sur ${horizon} — entrée possible sur repli court`
         : 'Rebond en formation — attendre confirmation au-dessus de la MA7',
       sell: !aboveMa
-        ? 'Pression vendeuse — envisager une sortie ou réduction d\'exposition'
+        ? `Pression vendeuse sur ${horizon} — envisager une sortie ou réduction d'exposition`
         : 'Correction probable malgré le support — prudence sur les niveaux actuels',
-      wait: Math.abs(change24h) < 1
-        ? 'Range latéral — pas de signal directionnel clair'
-        : 'Signal mixte — attendre une cassure plus nette',
+      wait:
+        Math.abs(change) < prefs.threshold / 2
+          ? `Range latéral sur ${horizon} — pas de signal directionnel clair`
+          : `Mouvement amorcé mais sous le seuil de ${prefs.threshold} % — attendre une cassure plus nette`,
     };
 
     return { signal, confidence, timing: timingBySignal[signal] };
   }
 
   /** Agrège toutes les données live pour une crypto. */
-  async function refreshCrypto(symbol, coinId) {
+  async function refreshCrypto(symbol, coinId, profileKey) {
     const id = coinId || resolveId(symbol);
     if (!id) throw new Error(`Crypto non mappée: ${symbol}`);
 
@@ -287,7 +345,7 @@ const CoinGecko = (() => {
         : (market.total_volume || 0) / 1e9;
 
     const change24h = market.price_change_percentage_24h ?? 0;
-    const recommendation = computeLiveRecommendation(candles, change24h);
+    const recommendation = computeLiveRecommendation(candles, change24h, profileKey);
 
     return {
       price: market.current_price,
@@ -361,6 +419,9 @@ const CoinGecko = (() => {
     fetchMarkets,
     fetchMarketForSymbol,
     signalFromMarket,
+    computeLiveRecommendation,
+    SIGNAL_PROFILES,
+    DEFAULT_PROFILE,
     refreshCrypto,
     applyLiveData,
     formatMarketCap,
