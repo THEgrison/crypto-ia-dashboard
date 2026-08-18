@@ -39,6 +39,7 @@
     volComparisonFill: document.getElementById('vol-comparison-fill'),
     volComparisonPct: document.getElementById('vol-comparison-pct'),
     newsList: document.getElementById('news-list'),
+    newsBadge: document.getElementById('news-badge'),
     longtermGrid: document.getElementById('longterm-grid'),
     shorttermGrid: document.getElementById('shortterm-grid'),
     priceChart: document.getElementById('price-chart'),
@@ -151,6 +152,7 @@
     renderVolume(data);
     renderNews(data);
     renderCharts(data);
+    loadNews(sym, data, generation);
 
     els.chartBadge.textContent = `${sym} · 30j`;
     els.volumeBadge.textContent = '14 derniers jours';
@@ -174,10 +176,6 @@
       lastUpdateAt = Date.now();
       renderLastUpdate();
       setApiStatus('live', 'Prix live · CoinGecko');
-      if (els.footerSource) {
-        els.footerSource.textContent =
-          'Prix & volumes · CoinGecko · Signaux · calcul local · News · mock / source externe';
-      }
     } catch (err) {
       if (generation !== fetchGeneration) return;
       console.warn('[CoinGecko]', err.message);
@@ -316,22 +314,69 @@
   }
 
   function renderNews(data) {
-    els.newsList.innerHTML = data.news
-      .map(
-        (n) => `
+    els.newsList.innerHTML = data.news.map(newsItemHtml).join('');
+  }
+
+  function newsItemHtml(n) {
+    const serenity = SERENITY_LABELS[n.serenity] || SERENITY_LABELS.neutre;
+    const title = escapeHtml(n.title);
+    const titleHtml = n.url
+      ? `<a class="news-item__link" href="${escapeHtml(n.url)}" target="_blank" rel="noopener noreferrer">${title}</a>`
+      : title;
+
+    /* Une news « marché » n'évoque pas la crypto sélectionnée : on l'étiquette pour éviter la confusion. */
+    const scopeTag =
+      n.scope === 'market' ? '<span class="news-item__scope">Marché</span>' : '';
+    const source = n.source ? `<span class="news-item__source">${escapeHtml(n.source)}</span>` : '';
+
+    return `
       <li class="news-item">
-        <div class="serenity-badge" aria-label="Niveau de sérénité : ${SERENITY_LABELS[n.serenity]}">
+        <div class="serenity-badge" aria-label="Niveau de sérénité : ${serenity}">
           <div class="serenity-badge__indicator" data-serenity="${n.serenity}" role="img" aria-hidden="true"></div>
-          <span class="serenity-badge__label">${SERENITY_LABELS[n.serenity]}</span>
+          <span class="serenity-badge__label">${serenity}</span>
         </div>
         <div class="news-item__content">
-          <h3 class="news-item__title">${escapeHtml(n.title)}</h3>
+          <h3 class="news-item__title">${titleHtml}</h3>
           <p class="news-item__excerpt">${escapeHtml(n.excerpt)}</p>
         </div>
-        <time class="news-item__time" datetime="${n.timestamp}">${formatTimestamp(n.timestamp)}</time>
-      </li>`
-      )
-      .join('');
+        <div class="news-item__meta">
+          <time class="news-item__time" datetime="${n.timestamp}">${formatTimestamp(n.timestamp)}</time>
+          ${source}
+          ${scopeTag}
+        </div>
+      </li>`;
+  }
+
+  async function loadNews(symbol, data, generation) {
+    try {
+      const items = await NewsFeed.load(symbol, data.name, data.coingeckoId);
+      if (generation !== fetchGeneration) return;
+
+      data.news = items;
+      renderNews(data);
+      setNewsBadge('live');
+    } catch (err) {
+      if (generation !== fetchGeneration) return;
+      console.warn('[News]', err.message);
+      setNewsBadge('mock');
+    }
+  }
+
+  function setNewsBadge(mode) {
+    if (!els.newsBadge) return;
+
+    const live = mode === 'live';
+    els.newsBadge.textContent = live ? 'Flux RSS · live' : 'Démo · proxy news inactif';
+    els.newsBadge.dataset.newsMode = mode;
+    els.newsBadge.title = live
+      ? 'Agrégation CoinDesk, Cointelegraph, Decrypt et Bitcoin.com via server.py'
+      : 'Lancez python3 server.py pour agréger les vrais flux RSS';
+
+    if (els.footerSource) {
+      els.footerSource.textContent = `Prix & volumes · CoinGecko · Signaux · calcul local · News · ${
+        live ? 'flux RSS agrégés' : 'données de démonstration'
+      }`;
+    }
   }
 
   function renderCharts(data) {

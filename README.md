@@ -20,7 +20,7 @@ Un tableau de bord noir et blanc façon terminal de trading, dense et anguleux, 
 - **Recommandation** — signal Acheter / Vendre / Attendre, niveau de confiance, suggestion de timing, prix, variation 24h et capitalisation
 - **Graphique de prix** — 30 jours, avec quatre modes d'affichage au choix (chandelles, barres OHLC, ligne, aire) et moyennes mobiles MA7 / MA25 activables
 - **Volumes** — volume 24h, moyenne, écart vs moyenne et historique sur 14 jours
-- **News & annonces** — chaque actualité porte un « niveau de sérénité » (calme, neutre, tendu, alarmant) rendu en nuances de gris et motifs
+- **News & annonces** — actualités réelles agrégées depuis quatre flux RSS crypto et filtrées sur la crypto affichée, chacune portant un « niveau de sérénité » (calme, neutre, tendu, alarmant) rendu en nuances de gris et motifs
 - **Hold long terme** — cryptos à faible volatilité, avec capitalisation et tendance
 - **Court terme / volatilité** — cryptos à forte volatilité récente, avec momentum
 
@@ -28,10 +28,10 @@ La recherche accepte n'importe quelle crypto référencée par CoinGecko, pas se
 
 ## Prérequis
 
-- Python 3 (ou n'importe quel serveur de fichiers statiques)
+- Python 3 — sert le dashboard et agrège les flux RSS des news
 - Une clé API CoinGecko Demo (gratuite)
 
-Aucune dépendance à installer : pas de build, pas de `npm install`.
+Aucune dépendance à installer : pas de build, pas de `npm install`, bibliothèque standard uniquement.
 
 ## Obtenir une clé API CoinGecko
 
@@ -77,33 +77,36 @@ Sans clé, le dashboard démarre quand même et bascule sur les données de dém
 ## Lancer le projet
 
 ```bash
-python3 -m http.server 8080
+python3 server.py
 ```
 
-Puis ouvrez http://localhost:8080.
+Puis ouvrez http://localhost:8080. Le port se change en argument : `python3 server.py 3000`.
 
-Un serveur local est **indispensable** : ouvrir `index.html` directement en `file://` fait échouer les appels à l'API (politique CORS du navigateur).
+`server.py` n'utilise que la bibliothèque standard, sans dépendance à installer. Il sert les fichiers du dashboard **et** expose `/api/news`, qui agrège les flux RSS côté serveur.
 
-Autres options équivalentes :
+Un serveur local est **indispensable** : ouvrir `index.html` directement en `file://` fait échouer les appels à l'API (politique CORS du navigateur). N'importe quel serveur statique fonctionne également, mais la section News retombe alors sur les données de démonstration :
 
 ```bash
-npx serve .          # Node
-php -S localhost:8080 # PHP
+python3 -m http.server 8080   # sans les news réelles
+npx serve .                   # Node
+php -S localhost:8080         # PHP
 ```
 
-L'indicateur en haut à droite affiche l'état de la connexion : `Prix live · CoinGecko` quand les données sont réelles, un message d'erreur avec repli sur les données locales sinon.
+L'indicateur en haut à droite affiche l'état de la connexion : `Prix live · CoinGecko` quand les données sont réelles, un message d'erreur avec repli sur les données locales sinon. Le badge du panneau News signale de la même façon `Flux RSS · live` ou `Démo · proxy news inactif`.
 
 ## Structure
 
 ```
 crypto-ia-dashboard/
 ├── index.html            # Structure du dashboard
+├── server.py             # Serveur statique + agrégation RSS (/api/news)
 ├── assets/logo.png       # Logo et favicon
 ├── css/styles.css        # Thème sombre anguleux
 └── js/
     ├── config.js         # Clé API et paramètres de rafraîchissement
     ├── data.js           # Données de démonstration et utilitaires
     ├── api.js            # Client CoinGecko
+    ├── news.js           # Client du proxy news
     ├── charts.js         # Rendu Canvas des graphiques
     └── app.js            # Logique d'interface
 ```
@@ -117,13 +120,18 @@ crypto-ia-dashboard/
 | Historique prix et volumes | CoinGecko | `/coins/{id}/market_chart?days=30` |
 | Recherche de cryptos | CoinGecko | `/coins/list` |
 | Signal Acheter / Vendre / Attendre | Calcul local | heuristique MA7 + variation 24h |
-| News et niveaux de sérénité | Données de démonstration | — |
+| News | CoinDesk, Cointelegraph, Decrypt, Bitcoin.com | flux RSS via `/api/news` |
+| Niveaux de sérénité | Calcul local | analyse lexicale du titre et du résumé |
 
 Les données sont rafraîchies automatiquement toutes les 60 secondes. La barre d'outils affiche l'heure et l'ancienneté de la dernière mise à jour, et permet de choisir la fréquence (30 s, 1 min, 5 min ou manuel) ainsi que de forcer une actualisation. Le choix est mémorisé dans le navigateur ; `refreshIntervalMs` de `js/config.js` sert de valeur par défaut à la première visite.
 
-### Brancher de vraies news
+### Comment fonctionnent les news
 
-CoinGecko ne fournit pas de flux d'actualités. Pour remplacer les news de démonstration, branchez une seconde source dans `js/api.js` — par exemple [CryptoPanic](https://cryptopanic.com/developers/api/) (offre gratuite limitée) ou un agrégateur RSS de sites crypto. Le niveau de sérénité peut alors être dérivé des votes ou du sentiment retourné par l'API.
+CoinGecko ne fournit pas d'actualités sur le plan Demo : son endpoint `/news` est réservé aux abonnés Pro. Les flux RSS des sites crypto, eux, ne renvoient pas d'en-tête `Access-Control-Allow-Origin`, ce qui interdit au navigateur de les lire depuis une page statique.
+
+C'est le rôle de `server.py` : il récupère les flux côté serveur, où la politique CORS ne s'applique pas, et les republie en JSON sur `/api/news`. Concrètement, il agrège quatre flux, met le résultat en cache 5 minutes, filtre les articles mentionnant la crypto affichée et déduit le niveau de sérénité du vocabulaire employé (« hack » ou « lawsuit » tirent vers *alarmant*, « rally » ou « approval » vers *calme*).
+
+Quand une crypto peu couverte ne remonte pas assez d'articles, le panneau est complété par de l'actualité générale, explicitement étiquetée **Marché** pour éviter toute confusion. Pour ajouter ou retirer une source, modifiez la liste `FEEDS` en tête de `server.py`.
 
 ## Sécurité
 
