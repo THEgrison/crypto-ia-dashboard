@@ -154,6 +154,12 @@ Le choix est mémorisé dans le navigateur et s'applique aussi bien à la crypto
 
 En marché calme, il est normal que le signal reste sur **Attendre** : c'est le comportement attendu, pas un dysfonctionnement. Passer en profil court terme fait apparaître les mouvements plus discrets. Pour aller plus loin, les seuils se modifient dans `SIGNAL_PROFILES`, en tête de `js/api.js`.
 
+### Spot, futures et broker
+
+Sous le calibrage, vous indiquez **le type de marché** (spot, futures, marge, options, CFD) et **le broker** (Binance, Bybit, OKX, etc.). Cela change le vocabulaire du signal — *Acheter* devient *Long* en futures — et le commentaire de timing, pour coller au cadre choisi.
+
+Les prix restent ceux de CoinGecko : le dashboard n'est pas connecté au broker, ne lit pas son carnet, et n'envoie aucun ordre. Le choix est mémorisé dans le navigateur et transmis à l'assistant.
+
 ### Alertes de signaux
 
 Les huit cryptos de la watchlist sont surveillées à chaque rafraîchissement, en une seule requête : `/coins/markets` renvoie au passage un *sparkline* de 168 points horaires sur 7 jours, dont la moyenne tient lieu de référence à la place des chandelles journalières utilisées pour la crypto affichée.

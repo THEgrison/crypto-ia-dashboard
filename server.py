@@ -235,7 +235,10 @@ Règles impératives :
   quand la question cherche une certitude.
 - Tu t'appuies sur les données ci-dessous. Si une information manque, tu le dis au
   lieu de l'inventer, et tu ne cites aucun chiffre absent de ces données.
-- Le dashboard n'exécute aucun ordre : ne propose jamais d'en passer un.
+- Le dashboard n'exécute aucun ordre et n'est connecté à aucun broker : ne propose
+  jamais d'en passer un, même si un broker est sélectionné.
+- Adapte le vocabulaire au type de marché (spot = acheter/vendre, futures/marge =
+  long/short) sans changer les chiffres.
 - Tu réponds en français, en quatre phrases maximum, sans liste à puces sauf demande
   explicite d'énumération.
 
@@ -271,11 +274,14 @@ def describe_context(ctx: dict) -> str:
         f"Prix : {fmt_usd(ctx.get('price'))}",
         f"Variation 24 h : {fmt_pct(ctx.get('change24h'))}",
         f"Capitalisation : {fmt_usd(ctx.get('marketCap'))}",
-        f"Signal calculé : {SIGNAL_LABELS.get(ctx.get('signal'), 'inconnu')}"
+        f"Signal calculé : {ctx.get('signalLabel') or SIGNAL_LABELS.get(ctx.get('signal'), 'inconnu')}"
         f" (confiance {ctx.get('confidence', '?')} %)",
         f"Commentaire de timing : {ctx.get('timing')}",
         f"Profil de calibrage : {profile.get('label')}"
         f" — seuil {profile.get('threshold')} % sur {profile.get('window')}",
+        f"Type de marché choisi : {(ctx.get('market') or {}).get('label', 'Spot')}",
+        f"Broker choisi : {(ctx.get('broker') or {}).get('label', 'Non spécifié')}"
+        " — le dashboard n'est pas connecté à ce broker, les prix viennent de CoinGecko",
         f"Prix vs moyenne 7 jours : {'au-dessus' if ctx.get('aboveMa') else 'en dessous'}",
         f"Volume 24 h : {fmt_usd(ctx.get('volume24h'))}"
         f" (moyenne {fmt_usd(ctx.get('volumeAverage24h'))})",
@@ -332,7 +338,7 @@ def local_reply(question: str, ctx: dict) -> str:
     q = question.lower()
     symbol = ctx.get("symbol") or "cette crypto"
     profile = ctx.get("profile") or {}
-    signal = SIGNAL_LABELS.get(ctx.get("signal"), "Attendre")
+    signal = ctx.get("signalLabel") or SIGNAL_LABELS.get(ctx.get("signal"), "Attendre")
     side = "au-dessus" if ctx.get("aboveMa") else "en dessous"
 
     if any(word in q for word in ("volume", "liquidit", "échange", "echange")):
@@ -362,7 +368,9 @@ def local_reply(question: str, ctx: dict) -> str:
     return (
         f"Le signal sur {symbol} est « {signal} » avec le profil {profile.get('label')} "
         f"(seuil {profile.get('threshold')} % sur {profile.get('window')}), et le prix est {side} "
-        f"de sa moyenne 7 jours. {ctx.get('timing') or ''} "
+        f"de sa moyenne 7 jours. Cadre {(ctx.get('market') or {}).get('label', 'Spot')}"
+        f" · {(ctx.get('broker') or {}).get('label', 'broker non spécifié')}. "
+        f"{ctx.get('timing') or ''} "
         "Ce n'est pas un conseil d'investissement, "
         "et les performances passées ne préjugent pas des performances futures."
     )

@@ -18,8 +18,10 @@
   const PREFS_KEY = 'crypto-ia-chart-prefs';
   const REFRESH_KEY = 'crypto-ia-refresh-interval';
   const PROFILE_KEY = 'crypto-ia-signal-profile';
+  const VENUE_KEY = 'crypto-ia-venue';
   const chartPrefs = loadChartPrefs();
   let signalProfile = loadSignalProfile();
+  const venue = loadVenue();
 
   let refreshIntervalMs = loadRefreshInterval();
   let lastUpdateAt = null;
@@ -61,6 +63,8 @@
     toastStack: document.getElementById('toast-stack'),
     muteAlerts: document.getElementById('mute-alerts'),
     profileHint: document.getElementById('rec-profile-hint'),
+    venueHint: document.getElementById('rec-venue-hint'),
+    brokerSelect: document.getElementById('broker-select'),
   };
 
   /* Dernier signal connu par crypto : sert à n'alerter que sur les basculements. */
@@ -113,6 +117,65 @@
     }
   }
 
+  function loadVenue() {
+    const fallback = { market: DEFAULT_MARKET, broker: DEFAULT_BROKER };
+    try {
+      const stored = JSON.parse(localStorage.getItem(VENUE_KEY) || '{}');
+      return {
+        market: MARKET_TYPES[stored.market] ? stored.market : fallback.market,
+        broker: brokerOf(stored.broker).id,
+      };
+    } catch {
+      return fallback;
+    }
+  }
+
+  function saveVenue() {
+    try {
+      localStorage.setItem(VENUE_KEY, JSON.stringify(venue));
+    } catch {
+      /* stockage indisponible (navigation privée) : préférence non persistée */
+    }
+  }
+
+  function venueHintText() {
+    const market = marketOf(venue.market);
+    const broker = brokerOf(venue.broker);
+    const brokerBit =
+      broker.id === 'unspecified'
+        ? 'Prix CoinGecko, pas un carnet de broker.'
+        : `Prix CoinGecko — pas le carnet ${broker.label}. Aucun ordre n'est envoyé.`;
+    return `${market.hint}. ${brokerBit}`;
+  }
+
+  function bindVenueControls() {
+    document.querySelectorAll('[data-market]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        if (btn.dataset.market === venue.market) return;
+        venue.market = btn.dataset.market;
+        saveVenue();
+        syncVenueControls();
+        applyProfileToCurrent();
+      });
+    });
+
+    els.brokerSelect.addEventListener('change', () => {
+      venue.broker = els.brokerSelect.value;
+      saveVenue();
+      syncVenueControls();
+    });
+
+    syncVenueControls();
+  }
+
+  function syncVenueControls() {
+    document.querySelectorAll('[data-market]').forEach((btn) => {
+      btn.setAttribute('aria-pressed', String(btn.dataset.market === venue.market));
+    });
+    els.brokerSelect.value = venue.broker;
+    if (els.venueHint) els.venueHint.textContent = venueHintText();
+  }
+
   /* ── Calibrage du signal ── */
   function bindProfileControls() {
     document.querySelectorAll('[data-profile]').forEach((btn) => {
@@ -151,7 +214,8 @@
     data.recommendation = CoinGecko.computeLiveRecommendation(
       data.candles,
       data.change24h,
-      signalProfile
+      signalProfile,
+      venue.market
     );
     renderRecommendation(data);
   }
@@ -164,6 +228,7 @@
     bindChartControls();
     bindRefreshControls();
     bindProfileControls();
+    bindVenueControls();
     bindResize();
     Notifier.init({ container: els.toastStack, toggle: els.muteAlerts });
     Chat.init({
@@ -214,7 +279,14 @@
         const actionable = signal === 'buy' || signal === 'sell';
         const isNew = previous === undefined;
         if (actionable && (initial ? isNew : !isNew && previous !== signal)) {
-          alerts.push({ symbol, name: row.name, signal, price, change24h });
+          alerts.push({
+            symbol,
+            name: row.name,
+            signal,
+            price,
+            change24h,
+            actionSuffix: marketOf(venue.market).toast[signal],
+          });
         }
       });
 
@@ -279,7 +351,7 @@
     els.recPrice.classList.add('is-loading');
 
     try {
-      const live = await CoinGecko.refreshCrypto(sym, currentCoinId, signalProfile);
+      const live = await CoinGecko.refreshCrypto(sym, currentCoinId, signalProfile, venue.market);
       if (generation !== fetchGeneration) return;
 
       CoinGecko.applyLiveData(data, live);
@@ -390,7 +462,7 @@
     els.recChange.textContent = formatChange(data.change24h);
     els.recChange.className = `rec-change ${data.change24h >= 0 ? 'is-positive' : 'is-negative'}`;
 
-    els.recSignal.textContent = SIGNAL_LABELS[data.recommendation.signal];
+    els.recSignal.textContent = signalLabel(data.recommendation.signal, venue.market);
     els.recSignal.dataset.signal = data.recommendation.signal;
 
     els.recConfidence.textContent = `${data.recommendation.confidence}%`;
@@ -511,12 +583,15 @@
       change24h: data.change24h,
       marketCap: data.marketCap,
       signal: data.recommendation?.signal,
+      signalLabel: signalLabel(data.recommendation?.signal, venue.market),
       confidence: data.recommendation?.confidence,
       timing: data.recommendation?.timing,
       aboveMa: lastMa != null ? data.price > lastMa : data.change24h > 0,
       volume24h: data.volume?.current24h,
       volumeAverage24h: data.volume?.average24h,
       profile: { label: profile.label, threshold: profile.threshold, window: profile.window },
+      market: { type: venue.market, label: marketOf(venue.market).label },
+      broker: { id: venue.broker, label: brokerOf(venue.broker).label },
       news: (data.news || []).slice(0, 5).map((n) => ({
         title: n.title,
         serenity: n.serenity,

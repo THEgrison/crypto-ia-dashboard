@@ -289,7 +289,7 @@ const CoinGecko = (() => {
     return ((candles[candles.length - 1].close - past) / past) * 100;
   }
 
-  function computeLiveRecommendation(candles, change24h, profileKey) {
+  function computeLiveRecommendation(candles, change24h, profileKey, marketKey) {
     const prefs = profileOf(profileKey);
 
     if (!candles?.length) {
@@ -322,11 +322,14 @@ const CoinGecko = (() => {
           : `Mouvement amorcé mais sous le seuil de ${prefs.threshold} % — attendre une cassure plus nette`,
     };
 
-    return { signal, confidence, timing: timingBySignal[signal] };
+    const caveat = marketOf(marketKey).caveat;
+    const timing = caveat ? `${timingBySignal[signal]} ${caveat}` : timingBySignal[signal];
+
+    return { signal, confidence, timing };
   }
 
   /** Agrège toutes les données live pour une crypto. */
-  async function refreshCrypto(symbol, coinId, profileKey) {
+  async function refreshCrypto(symbol, coinId, profileKey, marketKey) {
     const id = coinId || resolveId(symbol);
     if (!id) throw new Error(`Crypto non mappée: ${symbol}`);
 
@@ -345,7 +348,7 @@ const CoinGecko = (() => {
         : (market.total_volume || 0) / 1e9;
 
     const change24h = market.price_change_percentage_24h ?? 0;
-    const recommendation = computeLiveRecommendation(candles, change24h, profileKey);
+    const recommendation = computeLiveRecommendation(candles, change24h, profileKey, marketKey);
 
     return {
       price: market.current_price,

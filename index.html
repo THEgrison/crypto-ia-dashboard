@@ -95,6 +95,33 @@
           <p class="rec-profile__hint" id="rec-profile-hint">Bascule au-delà de 2 % sur 24 h — compromis par défaut</p>
         </div>
 
+        <div class="rec-venue">
+          <div class="rec-profile__group" role="group" aria-label="Type de marché">
+            <span class="rec-profile__label">Marché</span>
+            <button type="button" class="pill" data-market="spot" aria-pressed="true">Spot</button>
+            <button type="button" class="pill" data-market="futures" aria-pressed="false">Futures</button>
+            <button type="button" class="pill" data-market="margin" aria-pressed="false">Marge</button>
+            <button type="button" class="pill" data-market="options" aria-pressed="false">Options</button>
+            <button type="button" class="pill" data-market="other" aria-pressed="false">CFD / autre</button>
+          </div>
+          <label class="rec-venue__broker">
+            <span class="rec-profile__label">Broker</span>
+            <select id="broker-select" class="rec-venue__select" aria-label="Plateforme de courtage">
+              <option value="unspecified">Non spécifié</option>
+              <option value="binance">Binance</option>
+              <option value="bybit">Bybit</option>
+              <option value="okx">OKX</option>
+              <option value="bitget">Bitget</option>
+              <option value="kraken">Kraken</option>
+              <option value="coinbase">Coinbase</option>
+              <option value="cryptocom">Crypto.com</option>
+              <option value="bitstamp">Bitstamp</option>
+              <option value="ibkr">Interactive Brokers</option>
+            </select>
+          </label>
+          <p class="rec-profile__hint" id="rec-venue-hint">Achat et vente au comptant, sans levier</p>
+        </div>
+
         <div class="rec-signal">
           <div class="rec-signal__label">Signal</div>
           <div class="rec-signal__value" id="rec-signal" data-signal="buy">Acheter</div>
@@ -130,7 +157,7 @@
           </div>
         </div>
 
-        <p class="rec-note">Signal indicatif — ne constitue pas un conseil financier.</p>
+        <p class="rec-note">Signal indicatif — aucun ordre n'est envoyé au broker.</p>
       </section>
 
       <!-- Price chart -->

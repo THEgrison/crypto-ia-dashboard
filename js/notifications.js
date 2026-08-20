@@ -78,7 +78,7 @@ const Notifier = (() => {
     const symbol = document.createElement('span');
     symbol.className = 'toast__symbol';
     symbol.textContent = alert.symbol;
-    title.append(symbol, alert.signal === 'buy' ? ' à acheter' : ' à vendre');
+    title.append(symbol, alert.actionSuffix || (alert.signal === 'buy' ? ' à acheter' : ' à vendre'));
 
     const sign = alert.change24h >= 0 ? '+' : '';
     const detail = document.createElement('p');

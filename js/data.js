@@ -452,6 +452,77 @@ const SIGNAL_LABELS = {
   wait: 'Attendre',
 };
 
+/**
+ * Cadre d'analyse choisi par l'utilisateur. Les prix restent ceux de CoinGecko :
+ * ce n'est pas le carnet du broker, et aucun ordre n'est envoyé.
+ */
+const MARKET_TYPES = {
+  spot: {
+    label: 'Spot',
+    hint: 'Achat et vente au comptant, sans levier',
+    signals: { buy: 'Acheter', sell: 'Vendre', wait: 'Attendre' },
+    toast: { buy: ' à acheter', sell: ' à vendre' },
+    caveat: '',
+  },
+  futures: {
+    label: 'Futures',
+    hint: 'Contrats perpétuels ou datés — levier et financement à la charge du broker',
+    signals: { buy: 'Long', sell: 'Short', wait: 'Attendre' },
+    toast: { buy: ' — long', sell: ' — short' },
+    caveat:
+      'Cadre futures : le signal décrit une direction, pas un levier. Liquidation et funding dépendent du broker.',
+  },
+  margin: {
+    label: 'Marge',
+    hint: 'Position financée par emprunt — le broker peut liquider',
+    signals: { buy: 'Long', sell: 'Short', wait: 'Attendre' },
+    toast: { buy: ' — long (marge)', sell: ' — short (marge)' },
+    caveat: 'Cadre marge : une baisse plus forte que le collatéral peut déclencher une liquidation.',
+  },
+  options: {
+    label: 'Options',
+    hint: 'Primes et décroissance temporelle — un biais directionnel ne suffit pas',
+    signals: { buy: 'Biais haussier', sell: 'Biais baissier', wait: 'Attendre' },
+    toast: { buy: ' — biais haussier', sell: ' — biais baissier' },
+    caveat: 'Cadre options : la valeur temps s\'érode même si le sous-jacent va dans le bon sens.',
+  },
+  other: {
+    label: 'CFD / autre',
+    hint: 'Produit synthétique du broker — écarts et frais propres à la plateforme',
+    signals: { buy: 'Hausse', sell: 'Baisse', wait: 'Attendre' },
+    toast: { buy: ' — hausse', sell: ' — baisse' },
+    caveat: 'Produit du broker : le prix affiché ici est un indice CoinGecko, pas le votre.',
+  },
+};
+
+const BROKERS = [
+  { id: 'unspecified', label: 'Non spécifié' },
+  { id: 'binance', label: 'Binance' },
+  { id: 'bybit', label: 'Bybit' },
+  { id: 'okx', label: 'OKX' },
+  { id: 'bitget', label: 'Bitget' },
+  { id: 'kraken', label: 'Kraken' },
+  { id: 'coinbase', label: 'Coinbase' },
+  { id: 'cryptocom', label: 'Crypto.com' },
+  { id: 'bitstamp', label: 'Bitstamp' },
+  { id: 'ibkr', label: 'Interactive Brokers' },
+];
+
+const DEFAULT_MARKET = 'spot';
+const DEFAULT_BROKER = 'unspecified';
+
+function marketOf(key) {
+  return MARKET_TYPES[key] || MARKET_TYPES[DEFAULT_MARKET];
+}
+
+function brokerOf(id) {
+  return BROKERS.find((b) => b.id === id) || BROKERS[0];
+}
+
+function signalLabel(signal, marketKey) {
+  return marketOf(marketKey).signals[signal] || SIGNAL_LABELS[signal] || signal;
+}
+
 /** Generate pseudo-random OHLC candles ending at `endPrice`. */
 function generateCandles(endPrice, count, volatility) {
   const candles = [];
