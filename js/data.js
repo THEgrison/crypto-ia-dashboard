@@ -466,17 +466,17 @@ const MARKET_TYPES = {
   },
   futures: {
     label: 'Futures',
-    hint: 'Contrats perpétuels ou datés — levier et financement à la charge du broker',
-    signals: { buy: 'Long', sell: 'Short', wait: 'Attendre' },
-    toast: { buy: ' — long', sell: ' — short' },
+    hint: 'Contrats perpétuels ou datés — levier et financement à la charge du broker. Long = hausse, Short = baisse.',
+    signals: { buy: 'Long · hausse', sell: 'Short · baisse', wait: 'Attendre' },
+    toast: { buy: ' — long (hausse)', sell: ' — short (baisse)' },
     caveat:
       'Cadre futures : le signal décrit une direction, pas un levier. Liquidation et funding dépendent du broker.',
   },
   margin: {
     label: 'Marge',
     hint: 'Position financée par emprunt — le broker peut liquider',
-    signals: { buy: 'Long', sell: 'Short', wait: 'Attendre' },
-    toast: { buy: ' — long (marge)', sell: ' — short (marge)' },
+    signals: { buy: 'Long · hausse', sell: 'Short · baisse', wait: 'Attendre' },
+    toast: { buy: ' — long (hausse)', sell: ' — short (baisse)' },
     caveat: 'Cadre marge : une baisse plus forte que le collatéral peut déclencher une liquidation.',
   },
   options: {
